@@ -1,0 +1,226 @@
+name: rateguard
+
+# ---------------------------------------------------------------------------
+# Anchors: the three gateways are identical except for container_name/NODE_ID.
+# That sameness is statelessness (frozen F4) expressed operationally.
+# ---------------------------------------------------------------------------
+x-gateway-common: &gateway-common
+  build:
+    context: ../gateway
+    dockerfile: Dockerfile
+  image: rateguard/gateway:local
+  restart: unless-stopped
+  networks: [rateguard]
+  environment: &gateway-env
+    PORT: "3000"
+    REDIS_URL: "redis://:${REDIS_PASSWORD}@redis:6379"
+    DATABASE_URL: "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}"
+    UPSTREAM_URL: "http://backend-dummy:4000"
+    # Same pepper as admin-api — interpolated from one .env value, by construction.
+    API_KEY_PEPPER: "${API_KEY_PEPPER}"
+    FAIL_OPEN: "${FAIL_OPEN:-true}"
+    NO_POLICY_BEHAVIOR: "${NO_POLICY_BEHAVIOR:-allow}"
+    POLICY_CACHE_TTL_MS: "${POLICY_CACHE_TTL_MS:-30000}"
+    BUCKET_TTL_SECONDS: "${BUCKET_TTL_SECONDS:-3600}"
+    REDIS_COMMAND_TIMEOUT_MS: "${REDIS_COMMAND_TIMEOUT_MS:-200}"
+    PROXY_TIMEOUT_MS: "${PROXY_TIMEOUT_MS:-10000}"
+    ANOMALY_ENABLED: "${ANOMALY_ENABLED:-false}"
+    LOG_LEVEL: "${LOG_LEVEL:-info}"
+  healthcheck:
+    test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/readyz"]
+    interval: 10s
+    timeout: 3s
+    retries: 5
+    start_period: 10s
+  depends_on:
+    redis:
+      condition: service_healthy
+    postgres:
+      condition: service_healthy
+    backend-dummy:
+      condition: service_healthy
+
+services:
+  # --- DATA PLANE -----------------------------------------------------------
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: rateguard-nginx
+    restart: unless-stopped
+    ports:
+      - "8080:80" # the ONLY data-plane entrance; load-test GATEWAY_URL depends on it
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    networks: [rateguard]
+    depends_on:
+      gateway-1:
+        condition: service_healthy
+      gateway-2:
+        condition: service_healthy
+      gateway-3:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/nginx-health"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  # Deliberately no host ports: a replica must be unreachable except through nginx,
+  # so the correctness proof cannot be pointed at one node by accident.
+  gateway-1:
+    <<: *gateway-common
+    container_name: gateway-1
+    environment:
+      <<: *gateway-env
+      NODE_ID: "gateway-1"
+
+  gateway-2:
+    <<: *gateway-common
+    container_name: gateway-2
+    environment:
+      <<: *gateway-env
+      NODE_ID: "gateway-2"
+
+  gateway-3:
+    <<: *gateway-common
+    container_name: gateway-3
+    environment:
+      <<: *gateway-env
+      NODE_ID: "gateway-3"
+
+  backend-dummy:
+    build:
+      context: ../backend-dummy
+      dockerfile: Dockerfile
+    image: rateguard/backend-dummy:local
+    container_name: rateguard-backend-dummy
+    restart: unless-stopped
+    networks: [rateguard]
+    environment:
+      PORT: "4000"
+      NODE_ID: "backend-dummy"
+      # MUST stay 0 for concurrency-proof.js — injected latency changes what it measures.
+      DEFAULT_LATENCY_MS: "${DEFAULT_LATENCY_MS:-0}"
+      LOG_LEVEL: "${LOG_LEVEL:-info}"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:4000/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  redis:
+    image: redis:7.2-alpine
+    container_name: rateguard-redis
+    restart: unless-stopped
+    # No host port: Redis is never exposed outside the compose network.
+    # --maxmemory-policy noeviction is a CORRECTNESS setting (frozen F9):
+    # evicting a live limiter key would silently reset a tenant's limit.
+    command: >
+      redis-server
+      --requirepass ${REDIS_PASSWORD}
+      --appendonly yes
+      --maxmemory-policy noeviction
+    volumes:
+      - redis-data:/data
+    networks: [rateguard]
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # --- CONTROL PLANE --------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    container_name: rateguard-postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432" # exposed so `prisma migrate deploy` can run from the host
+    environment:
+      POSTGRES_USER: "${POSTGRES_USER}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
+      POSTGRES_DB: "${POSTGRES_DB}"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks: [rateguard]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  admin-api:
+    build:
+      context: ../admin-api
+      dockerfile: Dockerfile
+    image: rateguard/admin-api:local
+    container_name: rateguard-admin-api
+    restart: unless-stopped
+    ports:
+      - "4001:4001"
+    environment:
+      PORT: "4001"
+      NODE_ENV: "production"
+      DATABASE_URL: "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}"
+      REDIS_URL: "redis://:${REDIS_PASSWORD}@redis:6379"
+      JWT_SECRET: "${JWT_SECRET}"
+      JWT_EXPIRES_IN: "${JWT_EXPIRES_IN:-3600}"
+      # Identical to the gateway's value — same .env key, no second source of truth.
+      API_KEY_PEPPER: "${API_KEY_PEPPER}"
+      ADMIN_USERNAME: "${ADMIN_USERNAME}"
+      ADMIN_PASSWORD_HASH: "${ADMIN_PASSWORD_HASH}"
+      LOG_LEVEL: "${LOG_LEVEL:-info}"
+    networks: [rateguard]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:4001/readyz"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+  # --- OBSERVABILITY --------------------------------------------------------
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    container_name: rateguard-prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    networks: [rateguard]
+    depends_on:
+      gateway-1:
+        condition: service_healthy
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    container_name: rateguard-grafana
+    restart: unless-stopped
+    ports:
+      - "3001:3000" # container port is 3000; 3001 on the host avoids the usual collisions
+    environment:
+      GF_SECURITY_ADMIN_USER: "${GRAFANA_ADMIN_USER:-admin}"
+      GF_SECURITY_ADMIN_PASSWORD: "${GRAFANA_ADMIN_PASSWORD:-admin}"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    networks: [rateguard]
+    depends_on:
+      - prometheus
+
+networks:
+  rateguard:
+    driver: bridge
+
+volumes:
+  redis-data:
+  postgres-data:
+  prometheus-data:
+  grafana-data:
