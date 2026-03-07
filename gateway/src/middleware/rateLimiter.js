@@ -1,7 +1,7 @@
 'use strict';
 
 const { getPoliciesForTenant } = require('../config/policyCache');
-const { getPenalty } = require('../strategies/anomalyDetector');
+// const { getPenalty } = require('../strategies/anomalyDetector');
 const {
   requestsTotal,
   decisionLatency,
