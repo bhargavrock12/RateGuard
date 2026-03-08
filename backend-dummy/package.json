@@ -4,6 +4,7 @@
   "private": true,
   "description": "Minimal upstream target for the RateGuard gateway proxy path (data plane helper).",
   "main": "src/index.js",
+  "packageManager": "pnpm@9.15.0",
   "scripts": {
     "start": "node src/index.js"
   },
