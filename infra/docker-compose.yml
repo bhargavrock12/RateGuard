@@ -14,9 +14,9 @@ x-gateway-common: &gateway-common
   environment: &gateway-env
     PORT: "3000"
     REDIS_URL: "redis://:${REDIS_PASSWORD}@redis:6379"
-    DATABASE_URL: "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}"
+    # Temporarily disabled until Milestone 3 so it doesn't crash querying empty tables
+    # DATABASE_URL: "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}"
     UPSTREAM_URL: "http://backend-dummy:4000"
-    # Same pepper as admin-api — interpolated from one .env value, by construction.
     API_KEY_PEPPER: "${API_KEY_PEPPER}"
     FAIL_OPEN: "${FAIL_OPEN:-true}"
     NO_POLICY_BEHAVIOR: "${NO_POLICY_BEHAVIOR:-allow}"
@@ -26,6 +26,11 @@ x-gateway-common: &gateway-common
     PROXY_TIMEOUT_MS: "${PROXY_TIMEOUT_MS:-10000}"
     ANOMALY_ENABLED: "${ANOMALY_ENABLED:-false}"
     LOG_LEVEL: "${LOG_LEVEL:-info}"
+    # Inject static fallback vars for M1 testing
+    STATIC_API_KEY_HASH: "${STATIC_API_KEY_HASH}"
+    STATIC_ALGORITHM: "${STATIC_ALGORITHM}"
+    STATIC_LIMIT_COUNT: "${STATIC_LIMIT_COUNT}"
+    STATIC_REFILL_RATE: "${STATIC_REFILL_RATE}"
   healthcheck:
     test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/readyz"]
     interval: 10s

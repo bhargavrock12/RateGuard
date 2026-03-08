@@ -76,8 +76,7 @@ async function rateLimit(req, res, next) {
   const stopTimer = decisionLatency.startTimer({ algorithm: policy.algorithm });
 
   try {
-    // Note: getPenalty is a mock for now, we build the real anomalyDetector in M7.
-    // The architecture spec allows us to stub this early.
+    // Milestone 1 Mock: Hardcode the anomaly detector so it doesn't crash
     const multiplier = 1; 
     const throttled = false;
     
