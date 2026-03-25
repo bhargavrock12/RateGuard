@@ -1,6 +1,6 @@
 -- Sliding window counter. Weighted previous-window approximation.
 -- KEYS[1] = base key prefix, e.g. rl:{tenant}:{route}
--- ARGV[1] = limit, ARGV[2] = window_ms
+-- ARGV[1] = limit, ARGV[2] = window_ms 
 -- returns {allowed, remaining, reset_ms}
 
 if redis.replicate_commands then redis.replicate_commands() end
