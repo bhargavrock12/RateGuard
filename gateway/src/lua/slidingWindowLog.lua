@@ -16,6 +16,11 @@ redis.call('ZREMRANGEBYSCORE', KEYS[1], 0, now - window_ms)
 
 local count   = redis.call('ZCARD', KEYS[1])
 local allowed = 0
+if count < limit then
+  redis.call('ZADD', KEYS[1], now, uid)
+  count = count + 1
+  allowed = 1
+end
 
 redis.call('PEXPIRE', KEYS[1], window_ms + 1000)
 
