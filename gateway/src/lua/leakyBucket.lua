@@ -26,7 +26,7 @@ if level + 1 <= capacity then
 end
 
 redis.call('HMSET', KEYS[1], 'level', level, 'last_leak', now)
-redis.call('EXPIRE', KEYS[1], ttl)
+redis.call('EXPIRE', KEYS[1], ttl) 
 
 local reset_ms = 0
 if allowed == 0 then
