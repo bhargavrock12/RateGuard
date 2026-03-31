@@ -11,6 +11,10 @@ if redis.replicate_commands then redis.replicate_commands() end
 local t = redis.call('TIME')
 local now = tonumber(t[1]) * 1000 + math.floor(tonumber(t[2]) / 1000)
 
+local base      = KEYS[1]
+local limit     = tonumber(ARGV[1])
+local window_ms = tonumber(ARGV[2])
+
 local window_id = math.floor(now / window_ms)
 local elapsed   = now % window_ms
 local key       = base .. ':fw:' .. window_id
