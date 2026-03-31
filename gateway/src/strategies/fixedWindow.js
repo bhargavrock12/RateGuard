@@ -16,7 +16,7 @@ local limit     = tonumber(ARGV[1])
 local window_ms = tonumber(ARGV[2])
 
 local window_id = math.floor(now / window_ms)
-local elapsed   = now % window_ms
+local elapsed   = now % window_ms 
 local key       = base .. ':fw:' .. window_id
 
 local count = tonumber(redis.call('GET', key) or '0')
