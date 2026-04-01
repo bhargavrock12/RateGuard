@@ -13,6 +13,10 @@ const logger = require('../utils/logger');
 
 const STRATEGIES = {
   token_bucket: require('../strategies/tokenBucket'),
+  sliding_window_counter: require('../strategies/slidingWindowCounter'),
+  sliding_window_log: require('../strategies/slidingWindowLog'),
+  leaky_bucket: require('../strategies/leakyBucket'),
+  fixed_window: require('../strategies/fixedWindow'),
 };
 
 const FAIL_OPEN = process.env.FAIL_OPEN !== 'false'; // frozen F5: open by default
