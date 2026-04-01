@@ -1,7 +1,7 @@
 'use strict';
 
 const { getPoliciesForTenant } = require('../config/policyCache');
-// const { getPenalty } = require('../strategies/anomalyDetector');
+const { getPenalty } = require('../strategies/anomalyDetector');
 const {
   requestsTotal,
   decisionLatency,
@@ -13,7 +13,6 @@ const logger = require('../utils/logger');
 
 const STRATEGIES = {
   token_bucket: require('../strategies/tokenBucket'),
-  // We will add the other strategies in later milestones
 };
 
 const FAIL_OPEN = process.env.FAIL_OPEN !== 'false'; // frozen F5: open by default
@@ -76,10 +75,7 @@ async function rateLimit(req, res, next) {
   const stopTimer = decisionLatency.startTimer({ algorithm: policy.algorithm });
 
   try {
-    // Milestone 1 Mock: Hardcode the anomaly detector so it doesn't crash
-    const multiplier = 1; 
-    const throttled = false;
-    
+    const { multiplier, throttled } = await getPenalty({ tenantId, policy });
     const effectiveLimit = Math.max(1, Math.floor(Number(policy.limit_count) * multiplier));
     if (throttled) anomalyThrottleTotal.inc({ tenant: tenantId });
 
