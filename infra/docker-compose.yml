@@ -28,7 +28,7 @@ x-gateway-common: &gateway-common
     LOG_LEVEL: "${LOG_LEVEL:-info}"
     # Inject static fallback vars for M1 testing
     STATIC_API_KEY_HASH: "${STATIC_API_KEY_HASH}"
-    STATIC_ALGORITHM: "${STATIC_ALGORITHM}"
+    STATIC_ALGORITHM: "${STATIC_ALGORITHM:-sliding_window_counter}"
     STATIC_LIMIT_COUNT: "${STATIC_LIMIT_COUNT}"
     STATIC_REFILL_RATE: "${STATIC_REFILL_RATE}"
   healthcheck:
