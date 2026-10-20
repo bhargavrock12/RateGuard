@@ -81,8 +81,8 @@ async function getPoliciesForTenant(tenantId) {
 
   const { rows } = await pool.query(
     `SELECT id, route_pattern, algorithm, limit_count, window_seconds, refill_rate
-        FROM rate_limit_policies
-       WHERE tenant_id = $1`,
+       FROM rate_limit_policies
+      WHERE tenant_id = $1`,
     [tenantId]
   );
   return put(policiesByTenant, tenantId, rows);
