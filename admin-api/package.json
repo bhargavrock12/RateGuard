@@ -1,0 +1,29 @@
+{
+  "name": "rateguard-admin-api",
+  "version": "1.0.0",
+  "private": true,
+  "description": "RateGuard control plane — tenant & policy management",
+  "main": "src/index.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "postinstall": "prisma generate",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate deploy",
+    "prisma:migrate:dev": "prisma migrate dev",
+    "hash:password": "node -e \"console.log(require('./src/utils/hash').hashPassword(process.argv[1]))\""
+  },
+  "dependencies": {
+    "@prisma/client": "^5.19.1",
+    "express": "^4.19.2",
+    "ioredis": "^5.4.1",
+    "jsonwebtoken": "^9.0.2",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "prisma": "^5.19.1"
+  }
+}
